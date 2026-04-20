@@ -1,0 +1,10 @@
+build/bin/
+node_modules/
+frontend/dist/
+frontend/wailsjs/
+dist/
+.DS_Store
+Thumbs.db
+*.exe
+*.tmp
+*.mdediter.tmp

@@ -1,0 +1,12 @@
+html, body, #app {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    color: #1f2328;
+    font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
