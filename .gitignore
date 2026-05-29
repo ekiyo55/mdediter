@@ -1,10 +1,15 @@
+# Build output
 build/bin/
-node_modules/
+
+# Frontend generated
+frontend/node_modules/
 frontend/dist/
 frontend/wailsjs/
+frontend/package-lock.json
+frontend/package.json.md5
+
+# Distribution zips
 dist/
-.DS_Store
-Thumbs.db
-*.exe
+
+# Wails temp
 *.tmp
-*.mdediter.tmp

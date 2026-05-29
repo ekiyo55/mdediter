@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type App struct {
-	ctx        context.Context
-	configPath string
+	ctx         context.Context
+	configPath  string
+	startupArgs []string
 }
 
 type FileResult struct {
@@ -28,7 +30,33 @@ type Config struct {
 const maxRecentFiles = 10
 
 func NewApp() *App {
-	return &App{}
+	return &App{startupArgs: collectStartupArgs(os.Args)}
+}
+
+func collectStartupArgs(args []string) []string {
+	if len(args) <= 1 {
+		return nil
+	}
+	var result []string
+	for _, raw := range args[1:] {
+		if raw == "" || strings.HasPrefix(raw, "-") {
+			continue
+		}
+		abs, err := filepath.Abs(raw)
+		if err != nil {
+			continue
+		}
+		info, err := os.Stat(abs)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		result = append(result, abs)
+	}
+	return result
+}
+
+func (a *App) GetStartupFiles() []string {
+	return a.startupArgs
 }
 
 func (a *App) startup(ctx context.Context) {

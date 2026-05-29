@@ -12,6 +12,11 @@ echo ">>> ソースを $WORK に同期..."
 mkdir -p "$WORK"
 cp "$SRC/app.go" "$SRC/main.go" "$SRC/go.mod" "$SRC/go.sum" "$SRC/wails.json" "$SRC/.gitignore" "$WORK/"
 
+# アイコンを同期
+mkdir -p "$WORK/build/windows"
+[ -f "$SRC/build/appicon.png" ]         && cp "$SRC/build/appicon.png"         "$WORK/build/"
+[ -f "$SRC/build/windows/icon.ico" ]    && cp "$SRC/build/windows/icon.ico"    "$WORK/build/windows/"
+
 rm -rf "$WORK/frontend/src"
 mkdir -p "$WORK/frontend"
 cp "$SRC/frontend/package.json" "$SRC/frontend/index.html" "$WORK/frontend/"

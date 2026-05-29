@@ -1,13 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
-  import {
-    OpenFileDialog,
-    SaveFile,
-    SaveFileDialog,
-    ReadFile,
-    ConfirmUnsavedClose,
-  } from '../wailsjs/go/main/App.js';
+  import * as platform from './lib/platform';
+  import type { FileResult } from './lib/platform';
   import {
     tabs,
     activeTabId,
@@ -21,9 +16,8 @@
   import { createEditor, type EditorHandle } from './lib/editor';
   import { renderMarkdown } from './lib/markdown';
   import { createScrollSync } from './lib/scrollsync';
-  import { EventsOn } from '../wailsjs/runtime/runtime';
 
-  const VERSION = '0.2.3';
+  const VERSION = '0.3.0';
 
   let editorContainer: HTMLDivElement;
   let previewEl: HTMLDivElement;
@@ -83,7 +77,7 @@
   }
 
   async function handleOpen() {
-    const res = await OpenFileDialog();
+    const res = await platform.openFile();
     if (res.error) return;
     const existing = findTabByPath(res.path);
     if (existing) {
@@ -101,7 +95,7 @@
       return;
     }
     const snapshot = tab.content;
-    const res = await SaveFile(tab.path, snapshot);
+    const res = await platform.saveFile(tab.path, snapshot);
     if (res.error) {
       alert('Failed to save: ' + res.error);
       return;
@@ -113,7 +107,7 @@
     const tab = getActiveTab();
     if (!tab) return;
     const snapshot = tab.content;
-    const res = await SaveFileDialog(tab.title || 'untitled.md', snapshot);
+    const res = await platform.saveFileAs(tab.title || 'untitled.md', snapshot);
     if (res.error) return;
     markSaved(tab.id, res.path, snapshot);
   }
@@ -126,7 +120,7 @@
     const tab = $tabs.find((t) => t.id === id);
     if (!tab) return;
     if (tab.dirty) {
-      const ok = await ConfirmUnsavedClose(tab.title || 'untitled');
+      const ok = await platform.confirmUnsavedClose(tab.title || 'untitled');
       if (!ok) return;
     }
     closeTab(id);
@@ -155,11 +149,13 @@
     }
   }
 
-  async function openDroppedPaths(paths: string[]) {
-    for (const path of paths) {
-      if (!path) continue;
-      const res = await ReadFile(path);
-      if (res.error) continue;
+  function openResolvedFiles(items: FileResult[], reportErrors = false) {
+    for (const res of items) {
+      if (!res) continue;
+      if (res.error) {
+        if (reportErrors) alert('Failed to open: ' + (res.path || '') + '\n' + res.error);
+        continue;
+      }
       const existing = findTabByPath(res.path);
       if (existing) {
         activeTabId.set(existing.id);
@@ -169,10 +165,15 @@
     }
   }
 
-  onMount(() => {
-    EventsOn('files-dropped', (paths: string[]) => {
-      openDroppedPaths(paths);
+  onMount(async () => {
+    platform.onFilesDropped((items) => {
+      openResolvedFiles(items);
     });
+    const startupFiles = await platform.getStartupFiles();
+    if (startupFiles && startupFiles.length > 0) {
+      const items = await Promise.all(startupFiles.map((p) => platform.readPath(p)));
+      openResolvedFiles(items, true);
+    }
     if ($tabs.length === 0) {
       newTab(
         '# Welcome to mdediter\n\nLeft: editor / Right: preview.\n\n- **Ctrl+O** to open\n- **Ctrl+S** to save\n- **Ctrl+N** for a new tab\n- **Ctrl+W** to close the tab\n- **Ctrl+/** to switch view mode\n\n```js\nconsole.log("hello");\n```\n\n| Feature | Supported |\n|---|---|\n| GFM | Yes |\n| KaTeX | Yes ($E = mc^2$) |\n\n- [x] Task done\n- [ ] Task pending\n',
@@ -197,6 +198,9 @@
       <button class:active={viewMode === 'preview'} on:click={() => setViewMode('preview')} title="Preview only">Preview</button>
     </div>
     <span class="spacer"></span>
+    {#if platform.isWeb}
+      <a class="winapp" href={platform.WIN_DOWNLOAD_URL} title="Download the Windows desktop app">⬇ Windows app</a>
+    {/if}
     <span class="title">mdediter <span class="version">v{VERSION}</span></span>
   </header>
 
@@ -250,6 +254,7 @@
     background: #ffffff;
     color: #1f2328;
     font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    --wails-drop-target: drop;
   }
   :global(*) {
     box-sizing: border-box;
@@ -258,7 +263,6 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    --wails-drop-target: drop;
   }
   .toolbar {
     display: flex;
@@ -300,6 +304,22 @@
     color: #8b949e;
     font-size: 11px;
     margin-left: 2px;
+  }
+  .winapp {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    margin-right: 10px;
+    border: 1px solid #d1d9e0;
+    border-radius: 4px;
+    background: #fff;
+    color: #0969da;
+    font-size: 12px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .winapp:hover {
+    background: #eef2f5;
   }
   .mode-group {
     display: inline-flex;
@@ -399,6 +419,7 @@
   .editor-pane {
     border-right: 1px solid #d1d9e0;
     background: #fff;
+    --default-contextmenu: show;
   }
   .workspace.mode-preview .preview-pane,
   .workspace.mode-edit .editor-pane {

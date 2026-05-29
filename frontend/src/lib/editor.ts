@@ -4,6 +4,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldGutter, indentOnInput } from '@codemirror/language';
+import { search, searchKeymap } from '@codemirror/search';
 
 export interface EditorHandle {
   view: EditorView;
@@ -28,9 +29,10 @@ export function createEditor(parent: HTMLElement, initial: string, onChange: (te
       history(),
       bracketMatching(),
       indentOnInput(),
+      search({ top: true }),
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       syntaxHighlighting(defaultHighlightStyle),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       EditorView.lineWrapping,
       updateListener,
     ],
