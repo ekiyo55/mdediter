@@ -385,15 +385,17 @@ Wails v2.12 では `options.App` に `OnFileDrop` フィールドはない。`6.
 
 ### GitHub
 - **URL**: https://github.com/ekiyo55/mdediter
-- **ローカルリポジトリ**: `C:/dev/mdediter/`（ビルド作業ディレクトリ兼）
-- **push 手順**:
+- **ローカルリポジトリ**: `G:/マイドライブ/mdediter/`（= プロジェクトルート。`.git` はここにある。`C:/dev/mdediter/` は **ビルド作業用ミラーで git 管理外**）
+  - 認証は Git Credential Manager（`credential.helper=manager`）。初回 push 時に GitHub サインインのポップアップが出ることがある
+  - `.gitignore` で `build/bin/`・`*.exe`・`frontend/dist/`・`frontend/wailsjs/`・`dist/`・`node_modules/` は除外（= 成果物はコミットされない。ソース＋ドキュメントのみ）
+- **push 手順**（プロジェクトルートで直接）:
   ```bash
-  cd C:/dev/mdediter
-  # build.sh 実行後、G: からの差分を手動 cp（build.sh が上書きするため）
-  git add .
+  cd "G:/マイドライブ/mdediter"
+  git add -A
   git commit -m "vX.X.X: 変更内容"
-  git push
+  git push origin main
   ```
+- **注意（履歴分岐）**: 別マシン/別セッションから無関係な履歴（orphan commit）が push されて `main` が分岐していた事例あり（2026-05-29、リモートが「Initial release v0.2.7」単一コミットになっていた）。`git push` が `! [rejected] (fetch first)` で弾かれたら、まず `git fetch` して `git log origin/main` と `git merge-base HEAD origin/main` で関係を確認すること。**いきなり force-push しない**（共通祖先が無い＝unrelated histories の可能性）。リモートにしか無いファイルが無いと確認できた場合のみ `git push --force-with-lease origin main` で上書き可。
 
 ### note
 - **ログイン**: Google アカウント `eto@aicynap` でログイン
