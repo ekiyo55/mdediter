@@ -1,6 +1,6 @@
 # mdediter メンテナンスガイド
 
-作成: 2026-04-17 / 対象バージョン: v0.3.4（Web 版対応。§14 参照）
+作成: 2026-04-17 / 対象バージョン: v0.3.5（Web 版対応。§14 参照）
 
 ---
 
@@ -168,13 +168,12 @@ runtime.OnFileDrop(ctx, a.onFileDrop)
 `preview` モードのときは `scrollSync.detach()` される。
 
 ### 6.3 スクロール同期（`scrollsync.ts`）
-- **方式: ソース行の加重モデル＋スライディングアンカー同期**（v0.3.2 〜。v0.2.3〜v0.3.1 は単純パーセンテージ同期）
-- 各ソース行に「プレビュー換算高さ」の重みを付与し、累積和（`cum[]`、doc 参照で キャッシュ）で加重位置 `p` を算出して相手側に適用
-  - `#`=4 / `##`=3 / `###`=2 / 表行=1.5 / 表の区切り行(`|---|`)=0.5 / その他=1（`WEIGHT_*` 定数で調整可能）
-- アンカーはスクロール率 `r` に応じてビューポート上端（r=0）→下端（r=1）へスライド。文書の先頭・末尾では両ペインが必ず一致し、中間は加重モデルで補正
-- エディタ側は `lineBlockAtHeight` / `lineBlockAt` で実測ジオメトリ（折返し行の高さ込み）を使用。プレビュー→エディタは累積和の二分探索で行を特定
-- **Split 表示時はプレビューをエディタと同じ 14px・全幅（`max-width: none`）で描画**（v0.3.3 〜、`App.svelte` の `.workspace.mode-split .preview`）。両ペインで1ソース行あたりの折り返し回数を揃え、加重モデルの前提を成立させる。Preview 単独表示は読みやすさ優先で従来の 16px・920px 幅のまま
-- `markdown.ts` の `data-line` 属性は将来のデバッグ・別方式同期の余地として残置（描画には影響なし）
+- **方式: `data-line` 実測アンカー同期**（v0.3.5 〜。v0.3.2〜v0.3.4 は行加重モデル、v0.2.3〜v0.3.1 は単純パーセンテージ）
+- `markdown.ts` が各ブロック要素（level ≤ 1、`<li>` 含む）に `data-line`（0-based ソース行）を付与。scrollsync は描画後のプレビューから全 `data-line` 要素の実測 offsetTop を収集し、エディタ側は `lineBlockAt` の実測ジオメトリで対応させて「エディタ px ⇔ プレビュー px」の区分線形対応表（`eY[]`/`pY[]`＋両端センチネル）を構築
+- ブロック境界では**実測ベースで正確に一致**（フォント差・折返し差・画像・数式の影響を受けない）。ブロック内部は線形補間
+- 対応表は (doc 参照, 両ペインの scrollHeight ±4px) をキーに自動再構築（編集・リサイズで無効化）
+- 基準点はスクロール率 `r` に応じてビューポート上端（r=0）→下端（r=1）へスライドし、文書の先頭・末尾で必ず一致
+- **Split 表示時はプレビューをエディタと同じ 14px・全幅（`max-width: none`）で描画**（v0.3.3 〜、`App.svelte` の `.workspace.mode-split .preview`）。ブロック内部の補間精度が上がる。Preview 単独表示は読みやすさ優先で従来の 16px・920px 幅のまま
 - フィードバックループ防止に 120ms ロック
 
 ### 6.4 KaTeX（数式）
@@ -318,8 +317,9 @@ taskkill //F //IM mdediter.exe
 - 起動直後に落ちる → `%APPDATA%\mdediter\config.json` を削除してリセット
 
 ### 8.4 スクロール同期がずれる
-- v0.3.2 以降は加重モデル＋スライディングアンカー方式（§6.3）。見出し・表以外の要素（画像・数式・長大コードブロック等）で大きくズレる場合は、`scrollsync.ts` の `lineWeight()` に重みを追加して調整する
-- 端（先頭・末尾）は方式上必ず一致する。中間のズレは重み定数（`WEIGHT_*`）のチューニングで対応
+- v0.3.5 以降は `data-line` 実測アンカー方式（§6.3）。ブロック境界は実測なので原理的にズレない。ズレるとしたら単一の巨大ブロック（超長段落・長大コードブロック）の内部＝線形補間区間のみ
+- コードブロック（fence）はカスタムレンダラが attrs を出力しないため `data-line` アンカーが付かない。長大なコードブロック内部のズレが気になる場合は `markdown.ts` の fence レンダラで `data-line` を出力するよう拡張する
+- 端（先頭・末尾）は方式上必ず一致する
 
 ### 8.5 KaTeX でエラー色の赤文字が出る
 LaTeX 構文エラー。`throwOnError: false` で描画継続する設定。構文を直す。
@@ -360,6 +360,7 @@ Wails v2.12 では `options.App` に `OnFileDrop` フィールドはない。`6.
 | v0.2.5 | 2026-05-03 | ファイル関連付けバグ修正: `collectStartupArgs` に `os.Stat` チェック追加（実在ファイルのみ採用、スペース入りパスの分断を防止）/ 起動時 `ReadFile` 失敗を `alert` で通知 / アイコンをカスタムデザインに変更（濃紺グラデーション＋白太字「M」＋ティールアクセントバー）/ `build.sh` にアイコンファイル同期処理を追加 |
 | v0.2.6 | 2026-05-15 | D&D 修正: `--wails-drop-target: drop` を Svelte コンポーネントスコープの `.app` から `:global(html, body, #app)` へ移動し、Wails ネイティブ層が `getComputedStyle` で値を確実に拾えるようにした（v0.2.5 まで Svelte scoping により一部ビルドで D&D が無反応）。エディタに検索/置換キーを追加: `@codemirror/search` を導入し `search({ top: true })` 拡張と `searchKeymap` を組み込み（Ctrl+F / Ctrl+H / F3 / Shift+F3 / Esc）。`frontend/package.json` と `App.svelte` の VERSION を 0.2.6 に同期 |
 | v0.2.7 | 2026-05-18 | 右クリックで WebView2 標準コンテキストメニュー（Cut / Copy / Paste / Select All 等）を有効化。`main.go` に `EnableDefaultContextMenu: true` を追加（WebView2 COM レベルでのメニュー許可）。`App.svelte` の `.editor-pane` に CSS `--default-contextmenu: show` を追加（Wails runtime JS が CodeMirror 内の `contenteditable="false"` 要素で `preventDefault` するのを防ぐ）。Ctrl+X / Ctrl+C / Ctrl+V は CodeMirror ネイティブ処理で対応 |
+| v0.3.5 | 2026-08-04 | **スクロール同期を `data-line` 実測アンカー方式に刷新。** 重みヒューリスティックでは中間部の完全一致が困難だったため、プレビュー各ブロックの `data-line` から実測 offsetTop を収集し、エディタ側実測ジオメトリとの区分線形対応表で同期する方式に変更（`scrollsync.ts` 書き換え、`WEIGHT_*` 廃止）。`markdown.ts` の `data-line` 付与を level ≤ 1 に拡大（`<li>` にもアンカー）。ブロック境界は実測で正確に一致 |
 | v0.3.4 | 2026-08-04 | **CJK 約物に隣接する強調（太字）の不成立を修正。** CommonMark の flanking 規則では `「」（）` 等が句読点扱いのため、`**「それらしく続くかどうか」**を` のように閉じ `**` の直前が約物・直後が文字だと強調が成立せず `**` が素通しされていた。`markdown-it-cjk-friendly` (^2.0.2) を導入（CommonMark の CJK 対応改正案の実装）。既存の通常パターンへの影響なしをテスト確認済み |
 | v0.3.3 | 2026-08-04 | **Split 表示時のプレビュー基準フォントをエディタに一致。** プレビューは 16px＋`max-width:920px`、エディタは 14px＋全幅のため折り返し回数が両ペインで異なり、v0.3.2 の加重同期でも中間部がズレていた。Split 時のみ `.preview` を `font-size:14px; max-width:none` にして折り返しを揃えた（Preview 単独表示は従来通り 16px・920px） |
 | v0.3.2 | 2026-08-04 | **Split 表示のスクロール同期を加重モデル化。** 単純パーセンテージ同期では見出し・表でプレビュー側の高さが膨らみ中間部で行がズレていた。ソース行ごとに重み（`#`=4 / `##`=3 / `###`=2 / 表行=1.5 / 区切り行=0.5）を付与した累積和で加重位置を算出し、スクロール率に応じてビューポート上端→下端へスライドするアンカーで対応付ける方式に変更（`scrollsync.ts` 全面書き換え）。端は必ず一致、重みは `WEIGHT_*` 定数で調整可 |
@@ -427,7 +428,7 @@ Windows ネイティブ版と**同一コードベース**から、静的 SPA と
   - **Wails 実行時**（`window.go.main.App` が注入されている）: `OpenFileDialog / SaveFile / SaveFileDialog / ReadFile / ConfirmUnsavedClose / GetStartupFiles` を `window.go` 経由で呼ぶ。D&D は `window.runtime.EventsOn('files-dropped')`。
   - **ブラウザ実行時**: Open=`<input type=file>`、Save/SaveAs=**Blob ダウンロード保存**（File System Access API は不使用）、D&D=HTML5 `drop`、未保存確認=`window.confirm`。`getStartupFiles()` は `[]`。
 - `App.svelte` は `platform.*` を呼ぶだけ（`wailsjs` への**静的 import は無し**）。これにより plain `vite build` が `wailsjs` を解決しようとせず成功し、Wails ビルドは従来どおり `window.go` 注入で動く。
-- Web 実行時のみ、ツールバー右に Windows 版 DL リンク（`platform.WIN_DOWNLOAD_URL = /download/mdediter-v0.3.4.zip`）を表示。
+- Web 実行時のみ、ツールバー右に Windows 版 DL リンク（`platform.WIN_DOWNLOAD_URL = /download/mdediter-v0.3.5.zip`）を表示。
 
 ⚠️ **新バージョンを出すたびに `platform.ts` の `WIN_DOWNLOAD_URL` のバージョンを更新**し、対応する zip を `download/` に配置すること。
 
@@ -480,8 +481,8 @@ ssh -i "$KEY" "$HOST" "a2ensite mdediter-mooma mdediter-mooma-le-ssl && apache2c
 
 ```bash
 curl -sS -o /dev/null -w "%{http_code}\n" https://mdediter.mooma.style/
-curl -sSI https://mdediter.mooma.style/download/mdediter-v0.3.4.zip | head -1
+curl -sSI https://mdediter.mooma.style/download/mdediter-v0.3.5.zip | head -1
 # 配信中バンドルに DL リンクが含まれるか（古い dist を上げていないかの確認）
 JS=$(curl -sS https://mdediter.mooma.style/ | grep -o '/assets/index\.[a-f0-9]*\.js')
-curl -sS "https://mdediter.mooma.style$JS" | grep -o "/download/mdediter-v0.3.4.zip"
+curl -sS "https://mdediter.mooma.style$JS" | grep -o "/download/mdediter-v0.3.5.zip"
 ```

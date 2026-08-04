@@ -30,7 +30,9 @@ md.use(cjkFriendly);
 
 md.core.ruler.push('source_lines', (state) => {
   for (const token of state.tokens) {
-    if (token.map && token.level === 0) {
+    // Level 1 included so list items (<li>) also carry anchors — scrollsync
+    // builds its editor<->preview position table from these.
+    if (token.map && token.level <= 1) {
       token.attrSet('data-line', String(token.map[0]));
     }
   }

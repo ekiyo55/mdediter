@@ -6,52 +6,81 @@ export interface ScrollSync {
   detach(): void;
 }
 
-// Preview-height weights per source line, in "text line" units. Headings and
-// table rows render taller in the preview than in the editor, which is what
-// made the plain percentage sync drift in the middle of the document.
-const WEIGHT_H1 = 4;
-const WEIGHT_H2 = 3;
-const WEIGHT_H3 = 2;
-const WEIGHT_TABLE_ROW = 1.5;
-// The |---|---| separator row renders no row of its own (only borders/margins).
-const WEIGHT_TABLE_SEPARATOR = 0.5;
-const WEIGHT_DEFAULT = 1;
-
-function lineWeight(text: string): number {
-  const heading = /^ {0,3}(#{1,6})\s/.exec(text);
-  if (heading) {
-    const level = heading[1].length;
-    if (level === 1) return WEIGHT_H1;
-    if (level === 2) return WEIGHT_H2;
-    if (level === 3) return WEIGHT_H3;
-    return WEIGHT_DEFAULT;
-  }
-  if (/^ {0,3}\|/.test(text)) {
-    return /^ {0,3}\|[\s:|-]+\|?\s*$/.test(text) ? WEIGHT_TABLE_SEPARATOR : WEIGHT_TABLE_ROW;
-  }
-  return WEIGHT_DEFAULT;
-}
-
+// Measured-anchor sync: the preview renderer stamps each top-level block with
+// its source line (`data-line`, 0-based). From those we build a piecewise
+// mapping between editor pixel positions (CodeMirror line geometry) and
+// preview pixel positions (actual rendered offsets), so block boundaries
+// align exactly regardless of fonts, wrapping, images or math. Positions
+// between anchors are linearly interpolated.
 export function createScrollSync(): ScrollSync {
   let view: EditorView | null = null;
   let preview: HTMLElement | null = null;
   let locked = false;
   let unlockTimer: number | null = null;
 
-  // Weighted-line model, cached per immutable document instance.
+  // Parallel monotonic arrays: eY[i] (editor scrollTop space) <-> pY[i]
+  // (preview scrollTop space), with 0 and full scroll height as sentinels.
+  let eY: number[] = [];
+  let pY: number[] = [];
   let cachedDoc: Text | null = null;
-  let cum: number[] = []; // cum[i] = total weight of lines 1..i (cum[0] = 0)
-  let total = 0;
+  let cachedEH = -1;
+  let cachedPH = -1;
 
-  function ensureModel(doc: Text) {
-    if (doc === cachedDoc) return;
-    cachedDoc = doc;
-    cum = new Array(doc.lines + 1);
-    cum[0] = 0;
-    for (let i = 1; i <= doc.lines; i++) {
-      cum[i] = cum[i - 1] + lineWeight(doc.line(i).text);
+  function ensureTable() {
+    if (!view || !preview) return;
+    const scrollDOM = view.scrollDOM;
+    const doc = view.state.doc;
+    if (
+      doc === cachedDoc &&
+      Math.abs(scrollDOM.scrollHeight - cachedEH) <= 4 &&
+      Math.abs(preview.scrollHeight - cachedPH) <= 4
+    ) {
+      return;
     }
-    total = Math.max(cum[doc.lines], 1);
+    cachedDoc = doc;
+    cachedEH = scrollDOM.scrollHeight;
+    cachedPH = preview.scrollHeight;
+
+    const padTop = view.documentPadding.top;
+    const previewTop = preview.getBoundingClientRect().top;
+    const rawE: number[] = [0];
+    const rawP: number[] = [0];
+    preview.querySelectorAll('[data-line]').forEach((el) => {
+      const n = Number(el.getAttribute('data-line'));
+      if (!Number.isFinite(n) || !view || !preview) return;
+      const lineNo = Math.max(1, Math.min(doc.lines, n + 1)); // data-line is 0-based
+      const block = view.lineBlockAt(doc.line(lineNo).from);
+      rawE.push(block.top + padTop);
+      rawP.push(el.getBoundingClientRect().top - previewTop + preview.scrollTop);
+    });
+    rawE.push(scrollDOM.scrollHeight);
+    rawP.push(preview.scrollHeight);
+
+    // Keep only pairs that advance on both axes so interpolation stays sane.
+    eY = [rawE[0]];
+    pY = [rawP[0]];
+    for (let i = 1; i < rawE.length; i++) {
+      if (rawE[i] > eY[eY.length - 1] && rawP[i] > pY[pY.length - 1]) {
+        eY.push(rawE[i]);
+        pY.push(rawP[i]);
+      }
+    }
+  }
+
+  function mapY(from: number[], to: number[], y: number): number {
+    const last = from.length - 1;
+    if (last < 1 || y <= from[0]) return to[0] ?? 0;
+    if (y >= from[last]) return to[last];
+    let lo = 0;
+    let hi = last;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (from[mid] <= y) lo = mid;
+      else hi = mid;
+    }
+    const span = from[hi] - from[lo];
+    const frac = span > 0 ? (y - from[lo]) / span : 0;
+    return to[lo] + frac * (to[hi] - to[lo]);
   }
 
   function lock() {
@@ -66,8 +95,8 @@ export function createScrollSync(): ScrollSync {
     return Math.max(lo, Math.min(hi, v));
   }
 
-  // The anchor slides from the viewport top (at scroll start) to the viewport
-  // bottom (at scroll end) so both panes always meet exactly at the ends.
+  // The reference point slides from the viewport top (at scroll start) to the
+  // viewport bottom (at scroll end) so both panes meet exactly at the ends.
   function onEditorScroll() {
     if (locked || !view || !preview) return;
     const scrollDOM = view.scrollDOM;
@@ -75,16 +104,10 @@ export function createScrollSync(): ScrollSync {
     const previewMax = preview.scrollHeight - preview.clientHeight;
     if (editorMax <= 0 || previewMax <= 0) return;
 
-    ensureModel(view.state.doc);
+    ensureTable();
     const r = clamp(scrollDOM.scrollTop / editorMax, 0, 1);
-    const padTop = view.documentPadding.top;
-    const anchorY = scrollDOM.scrollTop + r * scrollDOM.clientHeight - padTop;
-    const block = view.lineBlockAtHeight(Math.max(0, anchorY));
-    const lineNo = view.state.doc.lineAt(block.from).number;
-    const frac = block.height > 0 ? clamp((anchorY - block.top) / block.height, 0, 1) : 0;
-    const p = (cum[lineNo - 1] + frac * (cum[lineNo] - cum[lineNo - 1])) / total;
-
-    const target = clamp(p * preview.scrollHeight - r * preview.clientHeight, 0, previewMax);
+    const anchorY = scrollDOM.scrollTop + r * scrollDOM.clientHeight;
+    const target = clamp(mapY(eY, pY, anchorY) - r * preview.clientHeight, 0, previewMax);
     lock();
     preview.scrollTop = target;
   }
@@ -96,26 +119,10 @@ export function createScrollSync(): ScrollSync {
     const previewMax = preview.scrollHeight - preview.clientHeight;
     if (editorMax <= 0 || previewMax <= 0) return;
 
-    ensureModel(view.state.doc);
+    ensureTable();
     const r = clamp(preview.scrollTop / previewMax, 0, 1);
-    const p = clamp((preview.scrollTop + r * preview.clientHeight) / preview.scrollHeight, 0, 1);
-
-    // Find the source line whose cumulative weight spans p * total.
-    const w = p * total;
-    let lo = 1;
-    let hi = view.state.doc.lines;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (cum[mid] < w) lo = mid + 1;
-      else hi = mid;
-    }
-    const lineNo = lo;
-    const span = cum[lineNo] - cum[lineNo - 1];
-    const frac = span > 0 ? clamp((w - cum[lineNo - 1]) / span, 0, 1) : 0;
-
-    const block = view.lineBlockAt(view.state.doc.line(lineNo).from);
-    const y = block.top + frac * block.height + view.documentPadding.top;
-    const target = clamp(y - r * scrollDOM.clientHeight, 0, editorMax);
+    const anchorY = preview.scrollTop + r * preview.clientHeight;
+    const target = clamp(mapY(pY, eY, anchorY) - r * scrollDOM.clientHeight, 0, editorMax);
     lock();
     scrollDOM.scrollTop = target;
   }
@@ -133,9 +140,11 @@ export function createScrollSync(): ScrollSync {
       if (preview) preview.removeEventListener('scroll', onPreviewScroll);
       view = null;
       preview = null;
+      eY = [];
+      pY = [];
       cachedDoc = null;
-      cum = [];
-      total = 0;
+      cachedEH = -1;
+      cachedPH = -1;
       if (unlockTimer) {
         window.clearTimeout(unlockTimer);
         unlockTimer = null;
