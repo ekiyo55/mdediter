@@ -2,7 +2,7 @@
 
 A lightweight Markdown viewer and editor, available as a Windows desktop app (Go + Wails + Svelte) and as a browser app from the same codebase.
 
-![version](https://img.shields.io/badge/version-0.3.0-blue)
+![version](https://img.shields.io/badge/version-0.3.5-blue)
 ![platform](https://img.shields.io/badge/platform-windows--amd64%20%7C%20web-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -12,7 +12,7 @@ A lightweight Markdown viewer and editor, available as a Windows desktop app (Go
 
 - **Live preview** — editor on the left, rendered preview on the right
 - **View modes** — Edit only / Split / Preview only (toggle with Ctrl+/)
-- **Scroll sync** — bidirectional, overall-ratio based
+- **Scroll sync** — bidirectional, anchored to measured block positions for exact alignment
 - **GitHub Flavored Markdown** — tables, task lists, strikethrough
 - **KaTeX math** — inline `$...$` and block `$$...$$`
 - **Syntax highlighting** — both in the editor (CodeMirror) and preview (highlight.js)
@@ -74,7 +74,7 @@ Download the latest zip from [mooma.style/app](https://mooma.style/app/) or [Rel
 - **Backend**: Go 1.23+ with [Wails v2](https://wails.io/)
 - **Frontend**: Svelte 3 + TypeScript + Vite 3
 - **Editor**: [CodeMirror 6](https://codemirror.net/)
-- **Markdown**: [markdown-it](https://github.com/markdown-it/markdown-it) + GFM + task-lists + KaTeX
+- **Markdown**: [markdown-it](https://github.com/markdown-it/markdown-it) + GFM + task-lists + KaTeX + [cjk-friendly](https://github.com/tats-u/markdown-cjk-friendly) emphasis
 - **Syntax highlighting**: [highlight.js](https://highlightjs.org/)
 
 ## Building from source
