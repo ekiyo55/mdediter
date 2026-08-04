@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
 import katex from '@vscode/markdown-it-katex';
+import cjkFriendly from 'markdown-it-cjk-friendly';
 import hljs from 'highlight.js';
 
 const md = new MarkdownIt({
@@ -22,6 +23,10 @@ const md = new MarkdownIt({
 
 md.use(taskLists, { enabled: true, label: true });
 md.use(katex, { throwOnError: false, errorColor: '#cc0000' });
+// CommonMark's flanking rules treat CJK brackets (「」（） etc.) as punctuation,
+// so e.g. **「…」**を fails to close and renders literally. This plugin applies
+// the proposed CJK-aware amendment to the emphasis rules.
+md.use(cjkFriendly);
 
 md.core.ruler.push('source_lines', (state) => {
   for (const token of state.tokens) {

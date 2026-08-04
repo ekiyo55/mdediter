@@ -42,7 +42,7 @@ function wailsRuntime(): WailsRuntime | null {
 export const isWeb: boolean = wailsApp() == null;
 
 /** Where the web UI links to the Windows desktop build. */
-export const WIN_DOWNLOAD_URL = '/download/mdediter-v0.3.3.zip';
+export const WIN_DOWNLOAD_URL = '/download/mdediter-v0.3.4.zip';
 
 // --- web helpers ---------------------------------------------------------
 

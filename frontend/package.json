@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.3.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,6 +33,7 @@
     "highlight.js": "^11.9.0",
     "katex": "^0.16.11",
     "markdown-it": "^14.1.1",
+    "markdown-it-cjk-friendly": "^2.0.2",
     "markdown-it-task-lists": "^2.1.1"
   }
 }
