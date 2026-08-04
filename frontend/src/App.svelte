@@ -18,7 +18,7 @@
   import { renderMarkdown } from './lib/markdown';
   import { createScrollSync } from './lib/scrollsync';
 
-  const VERSION = '0.3.1';
+  const VERSION = '0.3.2';
 
   let editorContainer: HTMLDivElement;
   let previewEl: HTMLDivElement;
