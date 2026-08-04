@@ -14,10 +14,11 @@
     findTabByPath,
   } from './lib/tabs';
   import { createEditor, type EditorHandle } from './lib/editor';
+  import { openSearchPanel } from '@codemirror/search';
   import { renderMarkdown } from './lib/markdown';
   import { createScrollSync } from './lib/scrollsync';
 
-  const VERSION = '0.3.0';
+  const VERSION = '0.3.1';
 
   let editorContainer: HTMLDivElement;
   let previewEl: HTMLDivElement;
@@ -146,6 +147,16 @@
       e.preventDefault();
       const next: ViewMode = viewMode === 'split' ? 'preview' : viewMode === 'preview' ? 'edit' : 'split';
       setViewMode(next);
+    } else if (e.key === 'f' || e.key === 'F' || e.key === 'h' || e.key === 'H') {
+      // Global search: open the in-editor search panel wherever focus is.
+      // Without this, Ctrl+F outside the editor falls through to the browser's
+      // find bar, which cannot see CodeMirror's virtualized (off-screen) lines.
+      if (!currentTab) return;
+      e.preventDefault();
+      if (viewMode === 'preview') setViewMode('split');
+      tick().then(() => {
+        if (editorHandle) openSearchPanel(editorHandle.view);
+      });
     }
   }
 
@@ -176,7 +187,7 @@
     }
     if ($tabs.length === 0) {
       newTab(
-        '# Welcome to mdediter\n\nLeft: editor / Right: preview.\n\n- **Ctrl+O** to open\n- **Ctrl+S** to save\n- **Ctrl+N** for a new tab\n- **Ctrl+W** to close the tab\n- **Ctrl+/** to switch view mode\n\n```js\nconsole.log("hello");\n```\n\n| Feature | Supported |\n|---|---|\n| GFM | Yes |\n| KaTeX | Yes ($E = mc^2$) |\n\n- [x] Task done\n- [ ] Task pending\n',
+        '# Welcome to mdediter\n\nLeft: editor / Right: preview.\n\n- **Ctrl+O** to open\n- **Ctrl+S** to save\n- **Ctrl+N** for a new tab\n- **Ctrl+W** to close the tab\n- **Ctrl+/** to switch view mode\n- **Ctrl+F** to search (Ctrl+H to replace)\n\n```js\nconsole.log("hello");\n```\n\n| Feature | Supported |\n|---|---|\n| GFM | Yes |\n| KaTeX | Yes ($E = mc^2$) |\n\n- [x] Task done\n- [ ] Task pending\n',
         ''
       );
     }

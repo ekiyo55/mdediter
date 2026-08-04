@@ -1,6 +1,6 @@
 # mdediter メンテナンスガイド
 
-作成: 2026-04-17 / 対象バージョン: v0.3.0（Web 版対応。§14 参照）
+作成: 2026-04-17 / 対象バージョン: v0.3.1（Web 版対応。§14 参照）
 
 ---
 
@@ -197,6 +197,7 @@ Svelte writable store:
 | Ctrl+N | 新規タブ |
 | Ctrl+W | タブを閉じる |
 | Ctrl+/ | 表示モード切替 |
+| Ctrl+F / Ctrl+H | 検索/置換パネルを開く（v0.3.1 〜 フォーカス位置に関係なくグローバルで動作。preview モード時は split に切替えてから開く） |
 
 ### エディタ内（CodeMirror 6 / `editor.ts`）
 `defaultKeymap` + `historyKeymap` + `searchKeymap` (v0.2.6 〜) を組み込み。
@@ -356,6 +357,7 @@ Wails v2.12 では `options.App` に `OnFileDrop` フィールドはない。`6.
 | v0.2.5 | 2026-05-03 | ファイル関連付けバグ修正: `collectStartupArgs` に `os.Stat` チェック追加（実在ファイルのみ採用、スペース入りパスの分断を防止）/ 起動時 `ReadFile` 失敗を `alert` で通知 / アイコンをカスタムデザインに変更（濃紺グラデーション＋白太字「M」＋ティールアクセントバー）/ `build.sh` にアイコンファイル同期処理を追加 |
 | v0.2.6 | 2026-05-15 | D&D 修正: `--wails-drop-target: drop` を Svelte コンポーネントスコープの `.app` から `:global(html, body, #app)` へ移動し、Wails ネイティブ層が `getComputedStyle` で値を確実に拾えるようにした（v0.2.5 まで Svelte scoping により一部ビルドで D&D が無反応）。エディタに検索/置換キーを追加: `@codemirror/search` を導入し `search({ top: true })` 拡張と `searchKeymap` を組み込み（Ctrl+F / Ctrl+H / F3 / Shift+F3 / Esc）。`frontend/package.json` と `App.svelte` の VERSION を 0.2.6 に同期 |
 | v0.2.7 | 2026-05-18 | 右クリックで WebView2 標準コンテキストメニュー（Cut / Copy / Paste / Select All 等）を有効化。`main.go` に `EnableDefaultContextMenu: true` を追加（WebView2 COM レベルでのメニュー許可）。`App.svelte` の `.editor-pane` に CSS `--default-contextmenu: show` を追加（Wails runtime JS が CodeMirror 内の `contenteditable="false"` 要素で `preventDefault` するのを防ぐ）。Ctrl+X / Ctrl+C / Ctrl+V は CodeMirror ネイティブ処理で対応 |
+| v0.3.1 | 2026-08-04 | **Ctrl+F / Ctrl+H をグローバル化。** 従来はエディタ（CodeMirror）にフォーカスがある時しか検索パネルが開かず、それ以外ではブラウザ標準の検索バーが開いて仮想描画の画面外テキストがヒットしなかった。`App.svelte` の `handleKeydown` に Ctrl+F/H を追加し `openSearchPanel()`（`@codemirror/search`）を直接呼ぶ形に変更。preview モード時は split に切替えてから開く。Welcome タブにも Ctrl+F 記載を追加 |
 | v0.3.0 | 2026-05-29 | **Web 版対応（`https://mdediter.mooma.style/`）。** 単一コードベース＋実行時プラットフォーム判定。新規 `frontend/src/lib/platform.ts` がファイル I/O を抽象化し、Wails 実行時は `window.go.main.App.*`／`window.runtime`、ブラウザ実行時は `<input type=file>`・Blob ダウンロード保存・HTML5 D&D・`window.confirm` を使う。`App.svelte` から `wailsjs` への静的 import を撤去（plain `vite build` が解決を試みないように）し、Web 時のみツールバーに Windows 版 DL リンク（`/download/mdediter-v0.3.0.zip`）を表示。Windows 版は shim 経由で従来動作を維持。詳細は §14 |
 
 ## 12. 配布・公開情報
@@ -419,7 +421,7 @@ Windows ネイティブ版と**同一コードベース**から、静的 SPA と
   - **Wails 実行時**（`window.go.main.App` が注入されている）: `OpenFileDialog / SaveFile / SaveFileDialog / ReadFile / ConfirmUnsavedClose / GetStartupFiles` を `window.go` 経由で呼ぶ。D&D は `window.runtime.EventsOn('files-dropped')`。
   - **ブラウザ実行時**: Open=`<input type=file>`、Save/SaveAs=**Blob ダウンロード保存**（File System Access API は不使用）、D&D=HTML5 `drop`、未保存確認=`window.confirm`。`getStartupFiles()` は `[]`。
 - `App.svelte` は `platform.*` を呼ぶだけ（`wailsjs` への**静的 import は無し**）。これにより plain `vite build` が `wailsjs` を解決しようとせず成功し、Wails ビルドは従来どおり `window.go` 注入で動く。
-- Web 実行時のみ、ツールバー右に Windows 版 DL リンク（`platform.WIN_DOWNLOAD_URL = /download/mdediter-v0.3.0.zip`）を表示。
+- Web 実行時のみ、ツールバー右に Windows 版 DL リンク（`platform.WIN_DOWNLOAD_URL = /download/mdediter-v0.3.1.zip`）を表示。
 
 ⚠️ **新バージョンを出すたびに `platform.ts` の `WIN_DOWNLOAD_URL` のバージョンを更新**し、対応する zip を `download/` に配置すること。
 
@@ -472,8 +474,8 @@ ssh -i "$KEY" "$HOST" "a2ensite mdediter-mooma mdediter-mooma-le-ssl && apache2c
 
 ```bash
 curl -sS -o /dev/null -w "%{http_code}\n" https://mdediter.mooma.style/
-curl -sSI https://mdediter.mooma.style/download/mdediter-v0.3.0.zip | head -1
+curl -sSI https://mdediter.mooma.style/download/mdediter-v0.3.1.zip | head -1
 # 配信中バンドルに DL リンクが含まれるか（古い dist を上げていないかの確認）
 JS=$(curl -sS https://mdediter.mooma.style/ | grep -o '/assets/index\.[a-f0-9]*\.js')
-curl -sS "https://mdediter.mooma.style$JS" | grep -o "/download/mdediter-v0.3.0.zip"
+curl -sS "https://mdediter.mooma.style$JS" | grep -o "/download/mdediter-v0.3.1.zip"
 ```
