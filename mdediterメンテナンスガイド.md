@@ -280,6 +280,7 @@ bash build.sh
 3. `mooma.style/app/` のファイルを更新（セクション12参照）
 4. GitHub に push（セクション12参照）
 5. メンテナンスガイドの変更履歴・VER を更新
+6. **README.md のバージョンバッジ（`version-X.X.X-blue`）を更新**（忘れがち）
 
 ### 7.7 Wails・Go のバージョン更新
 ```bash
