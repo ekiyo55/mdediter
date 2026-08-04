@@ -18,7 +18,7 @@
   import { renderMarkdown } from './lib/markdown';
   import { createScrollSync } from './lib/scrollsync';
 
-  const VERSION = '0.3.2';
+  const VERSION = '0.3.3';
 
   let editorContainer: HTMLDivElement;
   let previewEl: HTMLDivElement;
@@ -455,6 +455,13 @@
     max-width: 920px;
     margin: 0 auto;
     line-height: 1.7;
+  }
+  /* In split view, match the editor's base font size and wrap width so each
+     source line wraps into roughly the same number of visual lines on both
+     sides — the weighted scroll sync assumes comparable wrapping. */
+  .workspace.mode-split .preview {
+    font-size: 14px;
+    max-width: none;
   }
   .empty {
     flex: 1;
